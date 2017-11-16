@@ -43,11 +43,7 @@ public class NetServer {
             _server = new ServerBootstrap();
             _server.group(_acceptGroup, _workerGroup);
 
-            if (_config.type.equals("tcp")) {
-                _server.channel(factory.getServerSocketChannelClass());
-            } else if (_config.type.equals("udp")){
-                _server.channel(factory.getDatagramChannelClass());
-            }
+            _server.channel(factory.getServerSocketChannelClass());
 
             _server.childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
@@ -96,11 +92,10 @@ public class NetServer {
     }
 
     public ChannelFactory getChannelFactory(NetServerConfig config) throws Exception {
-        switch ( _config.core) {
-            case "nio":
-                return FactoryCreator.getInstance().getNioChannelFactory();
-            case "epoll":
-                return FactoryCreator.getInstance().getEpollChannelFactory();
+        if (_config.core.equals("nio")) {
+            return FactoryCreator.getInstance().getNioChannelFactory();
+        } else if (_config.core.equals("epoll")) {
+            return FactoryCreator.getInstance().getEpollChannelFactory();
         }
 
         throw new InvalidParameterException(String.format("core:%s invalid",  _config.core));

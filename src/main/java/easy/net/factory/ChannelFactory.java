@@ -6,6 +6,6 @@ import io.netty.channel.socket.DatagramChannel;
 
 public interface ChannelFactory {
     EventLoopGroup createEventLoopGroup(int threadCount);
-    Class getServerSocketChannelClass();
-    Class getDatagramChannelClass();
+    Class<? extends ServerChannel> getServerSocketChannelClass();
+    Class<? extends DatagramChannel> getDatagramChannelClass();
 }

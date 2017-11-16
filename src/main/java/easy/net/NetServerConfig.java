@@ -3,8 +3,6 @@ package easy.net;
 public class NetServerConfig {
     //端口号（0 - 65535）
     public int port = 0;
-    //协议类型（tcp udp）
-    public String type = "tcp";
     //I/O 核心 (nio epoll)
     public String core = "nio";
     //I/O 核心模型(epoll 有 EPOLLET 与 EPOLLET 两种模型)
