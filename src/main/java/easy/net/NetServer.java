@@ -2,16 +2,10 @@ package easy.net;
 
 import easy.net.factory.ChannelFactory;
 import easy.net.factory.FactoryCreator;
-import easy.net.factory.FactoryType;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
-
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.security.InvalidParameterException;
 
@@ -45,15 +39,10 @@ public class NetServer {
 
             _server.channel(factory.getServerSocketChannelClass());
 
-            _server.childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        public void initChannel(SocketChannel ch) throws Exception {
-                            ch.pipeline().addLast(new ChannelHandler());
-                        }
-                    })
-                    .option(ChannelOption.SO_BACKLOG, _config.backLog)
-                    .childOption(ChannelOption.SO_SNDBUF, 8 * 1024)     //发送和接收缓冲区默认8K
-                    .childOption(ChannelOption.SO_RCVBUF, 8 * 1024);
+            _server.childHandler(new ServerChannel(this))
+                .option(ChannelOption.SO_BACKLOG, _config.backLog)
+                .childOption(ChannelOption.SO_SNDBUF, 8 * 1024)     //发送和接收缓冲区默认8K
+                .childOption(ChannelOption.SO_RCVBUF, 8 * 1024);
 
             //系统级别的keepalive 不一定对方也打开，如果对方不开，就没用了
             if (_config.enabledSysKeepAlive) {
@@ -99,5 +88,85 @@ public class NetServer {
         }
 
         throw new InvalidParameterException(String.format("core:%s invalid",  _config.core));
+    }
+
+    //SOCKET相关对象初始化
+    private class ServerChannel extends ChannelInitializer<SocketChannel> {
+
+        private NetServer _server;
+
+        ServerChannel(NetServer server) {
+            _server = server;
+        }
+
+        @Override
+        public void initChannel(SocketChannel ch) throws Exception {
+            ch.pipeline().addLast(new ChannelHandler(_server));
+        }
+    }
+
+    //数据收发处理回调
+    private class ChannelHandler extends ChannelInboundHandlerAdapter {
+
+        private NetServer _server;
+        private ByteBuf _buffer;
+
+        ChannelHandler(NetServer server) {
+            _server = server;
+        }
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) {
+            _buffer = ctx.alloc().buffer(_server._config.recvBufferSize);
+        }
+
+        @Override
+        public void handlerRemoved(ChannelHandlerContext ctx) {
+            _buffer.release();
+            _buffer = null;
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            ByteBuf tmpBuf = (ByteBuf) msg;
+            _buffer.writeBytes(tmpBuf);
+            tmpBuf.release();
+
+            boolean againCheck = false;
+
+            do {
+                againCheck = false;
+                int byteSize = _buffer.readableBytes();
+
+                //先判断是否能获取到消息头部的包整体信息
+                if (byteSize >= _server._config.handler.getMsgSizeByteCount()) {
+
+                    //再判断获取到的数据否到达消息包体总大小
+                    int msgSize = _server._config.handler.getMsgSize(_buffer);
+
+                    if (byteSize >= msgSize) {
+
+                        //处理消息包
+                        _server._config.handler.handleMsg(ctx, _buffer);
+
+                        //移动未完整的消息数据到包头
+                        int tmpSize = byteSize - msgSize;
+                        if (tmpSize > 0) {
+                            ByteBuf buf = _buffer.slice(msgSize, tmpSize);
+                            _buffer.readerIndex(0).writerIndex(0).writeBytes(buf);
+                            againCheck = true;
+                        } else {
+                            _buffer.clear();
+                        }
+                    }
+                }
+            } while (againCheck);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            cause.printStackTrace();
+            ctx.close();
+        }
     }
 }

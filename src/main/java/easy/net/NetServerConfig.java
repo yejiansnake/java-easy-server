@@ -8,7 +8,7 @@ public class NetServerConfig {
     //I/O 核心模型(epoll 有 EPOLLET 与 EPOLLET 两种模型)
     public String mode = "";
     //消息体限制（TCP 默认20KB, UDP 默认 1KB）
-    public int recvByteSizeLimit = 20 * 1024;
+    public int recvBufferSize = 20 * 1024;
     //TCP accept 线程数
     public int acceptThreadCount = 1;
     //接收数据 - 工作线程数
