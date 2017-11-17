@@ -1,21 +1,150 @@
 package easy.thread;
 
 import easy.util.ChannelQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
 
 public class WorkerGroup {
-
-    private final static int _defaultWorkerCount = 5;
+    private final static int _stopWaitThreadSecond = 3;
+    private WorkerGroupConfig _config;
+    private boolean _stop = true;
     private ChannelQueue<Object> _queue;
+    private Thread[] _threads;
+    private CountDownLatch _countDownLatch;
 
     public WorkerGroup() {
-        this(_defaultWorkerCount);
     }
 
-    public WorkerGroup(int count) {
-        this(count, Integer.MAX_VALUE);
+    public final void start(WorkerGroupConfig config) throws Exception {
+        this.checkConfig(config);
+
+        synchronized (this) {
+            if (!_stop) {
+                throw new Exception("instance has start");
+            }
+            _stop = false;
+        }
+
+        _config = config;
+        _queue = new ChannelQueue<Object>(_config.queueCapacity);
+        this.initWorkerThreads();
     }
 
-    public WorkerGroup(int count, int capacity) {
+    public final void stop() {
+        synchronized (this) {
+            if (_stop) {
+                return;
+            }
+            _stop = true;
+        }
 
+        this.stopWorkerThreads();
+        _queue = null;
+        _config = null;
+    }
+
+    public final void addTask(Object task) throws Exception {
+        if (task == null) {
+            throw new IllegalArgumentException("config illegal");
+        }
+
+        _queue.add(task);
+    }
+
+    public final int taskCount() {
+        return _queue.count();
+    }
+
+    private void checkConfig(WorkerGroupConfig config) {
+        if (config == null) {
+            throw new IllegalArgumentException("config illegal");
+        }
+
+        if (config.handlerClass == null) {
+            throw new IllegalArgumentException("handlerClass illegal");
+        }
+
+        if (config.workerCount < 1) {
+            throw new IllegalArgumentException("workerCount illegal");
+        }
+
+        if (config.queueCapacity < 1) {
+            throw new IllegalArgumentException("queueCapacity illegal");
+        }
+    }
+
+    private void initWorkerThreads() {
+        _countDownLatch = new CountDownLatch(_config.workerCount);
+        _threads = new Thread[_config.workerCount];
+
+        for (int index = 0; index < _config.workerCount; index++) {
+            _threads[index] = new Thread(new WorkerRunnable(this));
+            _threads[index].start();
+        }
+    }
+
+    private void stopWorkerThreads() {
+        try {
+            if (!_countDownLatch.await(_stopWaitThreadSecond, TimeUnit.SECONDS)) {
+                for (int index = 0; index < _config.workerCount; index++) {
+                    Thread thread = _threads[index];
+                    if (!thread.isInterrupted()) {
+                        _threads[index].interrupt();
+                    }
+                    _threads[index] = null;
+                }
+            }
+        } catch (Exception ex) {
+            System.out.printf("work group stop exception, info:%s \n", ex.getMessage());
+        }
+        finally {
+            _countDownLatch = null;
+            _threads = null;
+        }
+    }
+
+    private final Object getTask(int waitSecond) throws Exception {
+        if (waitSecond < 0) {
+            throw new IllegalArgumentException("waitSecond illegal");
+        }
+        return _queue.poll(waitSecond, TimeUnit.SECONDS);
+    }
+
+    private class WorkerRunnable implements Runnable {
+
+        private WorkerGroup _workerGroup;
+
+        public WorkerRunnable(WorkerGroup workerGroup) {
+            _workerGroup = workerGroup;
+        }
+
+        public void run() {
+            try {
+                WorkerGroupHandler handler = _workerGroup._config.handlerClass.getConstructor().newInstance();
+                this.run(handler);
+            } catch (Exception ex) {
+                System.out.printf("work group runnable run failed, info:%s \n", ex.getMessage());
+            }
+        }
+
+        public void run(WorkerGroupHandler handler) {
+            Object taskObj = null;
+            while (!_workerGroup._stop) {
+                try {
+                    taskObj = _workerGroup.getTask(1);
+
+                    if (taskObj == null) {
+                        continue;
+                    }
+
+                    handler.handleTask(taskObj);
+
+                } catch (Exception ex) {
+                    handler.handleException(ex, taskObj);
+                }
+            }
+
+            _workerGroup._countDownLatch.countDown();
+        }
     }
 }

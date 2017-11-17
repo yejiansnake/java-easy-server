@@ -32,4 +32,8 @@ public class ChannelQueue<E> {
         }
         return _queue.poll();
     }
+
+    public int count() {
+        return _queue.size();
+    }
 }
