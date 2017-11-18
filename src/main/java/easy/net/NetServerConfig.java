@@ -23,4 +23,6 @@ public class NetServerConfig {
     public int backLog = 128;
     //处理步骤的回调
     public NetServerHandler handler = null;
+    //传递对象（在回调的时候可以引用）
+    public Object refObj = null;
 }

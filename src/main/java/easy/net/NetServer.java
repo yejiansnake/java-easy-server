@@ -22,11 +22,11 @@ public class NetServer {
     }
 
     //启动
-    public void start(NetServerConfig config) throws Exception {
+    public void run(NetServerConfig config) throws Exception {
         this.checkConfig(config);
-        ChannelFactory factory = this.getChannelFactory(config);
-
         _config = config;
+
+        ChannelFactory factory = this.getChannelFactory();
 
         //工作线程
         _acceptGroup = factory.createEventLoopGroup(_config.acceptThreadCount);
@@ -51,13 +51,13 @@ public class NetServer {
 
             // 绑定端口并启动接收
             _channelFuture = _server.bind(_config.port).sync(); // (7)
-
-        } finally {
-            this.stop();
+        } catch (Exception ex){
+            this.close();
+            throw ex;
         }
     }
 
-    public void stop() throws Exception {
+    public void close() throws Exception {
         // Wait until the server socket is closed.
         // In this example, this does not happen, but you can do that to gracefully
         // shut down your server.
@@ -80,7 +80,7 @@ public class NetServer {
 
     }
 
-    public ChannelFactory getChannelFactory(NetServerConfig config) throws Exception {
+    public ChannelFactory getChannelFactory() throws Exception {
         if (_config.core.equals("nio")) {
             return FactoryCreator.getInstance().getNioChannelFactory();
         } else if (_config.core.equals("epoll")) {
@@ -117,6 +117,7 @@ public class NetServer {
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
+            //System.out.printf("handlerAdded ctx name:%s", ctx.name());
             _buffer = ctx.alloc().buffer(_server._config.recvBufferSize);
         }
 
@@ -139,15 +140,17 @@ public class NetServer {
                 int byteSize = _buffer.readableBytes();
 
                 //先判断是否能获取到消息头部的包整体信息
-                if (byteSize >= _server._config.handler.getMsgSizeByteCount()) {
+                if (byteSize >= _server._config.handler.getMsgSizeFieldByteCount()) {
 
                     //再判断获取到的数据否到达消息包体总大小
                     int msgSize = _server._config.handler.getMsgSize(_buffer);
 
                     if (byteSize >= msgSize) {
 
+                        ByteBuf msgBuf = _buffer.slice(0, msgSize);
+
                         //处理消息包
-                        _server._config.handler.handleMsg(ctx, _buffer);
+                        _server._config.handler.handleMsg(ctx, msgBuf, _config.refObj);
 
                         //移动未完整的消息数据到包头
                         int tmpSize = byteSize - msgSize;
