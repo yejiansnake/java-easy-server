@@ -2,56 +2,45 @@ package easy.net;
 
 import easy.net.factory.ChannelFactory;
 import easy.net.factory.FactoryCreator;
-import io.netty.bootstrap.ServerBootstrap;
+import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
+import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.SocketChannel;
 
 import java.security.InvalidParameterException;
 
-public class TcpServer {
+public class UdpServer {
 
-    private TcpServerConfig _config;
-    private ServerBootstrap _server;
+    private UdpServerConfig _config;
+    private Bootstrap _server;
     private ChannelFuture _channelFuture;
-    private EventLoopGroup _acceptGroup;
     private EventLoopGroup _workerGroup;
 
-    public TcpServer() {
+    public UdpServer() {
 
     }
 
     //启动
-    public void run(TcpServerConfig config) throws Exception {
+    public void run(UdpServerConfig config) throws Exception {
         this.checkConfig(config);
         _config = config;
 
-        ChannelFactory factory = this.getChannelFactory();
+        easy.net.factory.ChannelFactory factory = this.getChannelFactory();
 
         //工作线程
-        _acceptGroup = factory.createEventLoopGroup(_config.acceptThreadCount);
         _workerGroup = factory.createEventLoopGroup(_config.recvThreadCount);
 
         //配置server 并启动
         try {
-            _server = new ServerBootstrap();
-            _server.group(_acceptGroup, _workerGroup);
+            _server = new Bootstrap();
+            _server.group(_workerGroup);
 
-            _server.channel(factory.getServerSocketChannelClass());
+            _server.channel(factory.getDatagramChannelClass());
 
-            _server.childHandler(new ServerChannel(this))
-                .option(ChannelOption.SO_BACKLOG, _config.backLog)
-                .childOption(ChannelOption.SO_SNDBUF, 8 * 1024)     //发送和接收缓冲区默认8K
-                .childOption(ChannelOption.SO_RCVBUF, 8 * 1024);
-
-            //系统级别的keepalive 不一定对方也打开，如果对方不开，就没用了
-            if (_config.enabledSysKeepAlive) {
-                _server.childOption(ChannelOption.SO_KEEPALIVE, true);
-            }
-
-            if (_config.keepAliveSecond > 0) {
-                _server.childOption(ChannelOption.SO_TIMEOUT, _config.keepAliveSecond);
-            }
+            _server.handler(new ServerChannel(this))
+                .option(ChannelOption.SO_SNDBUF, 8 * 1024)
+                .option(ChannelOption.SO_RCVBUF, 8 * 1024);
 
             // 绑定端口并启动接收
             _channelFuture = _server.bind(_config.port).sync();
@@ -71,13 +60,9 @@ public class TcpServer {
         if (_workerGroup != null) {
             _workerGroup.shutdownGracefully();
         }
-
-        if (_acceptGroup != null) {
-            _acceptGroup.shutdownGracefully();
-        }
     }
 
-    private void checkConfig(TcpServerConfig config) throws Exception {
+    private void checkConfig(UdpServerConfig config) throws Exception {
 
     }
 
@@ -94,9 +79,9 @@ public class TcpServer {
     //SOCKET相关对象初始化
     private class ServerChannel extends ChannelInitializer<SocketChannel> {
 
-        private TcpServer _server;
+        private UdpServer _server;
 
-        ServerChannel(TcpServer server) {
+        ServerChannel(UdpServer server) {
             _server = server;
         }
 
@@ -107,60 +92,43 @@ public class TcpServer {
     }
 
     //数据收发处理回调
-    private class ChannelHandler extends ChannelInboundHandlerAdapter {
+    private class ChannelHandler extends SimpleChannelInboundHandler<DatagramPacket> {
 
-        private TcpServer _server;
-        private ByteBuf _buffer;
+        private UdpServer _server;
 
-        ChannelHandler(TcpServer server) {
+        ChannelHandler(UdpServer server) {
             _server = server;
         }
 
         @Override
-        public void handlerAdded(ChannelHandlerContext ctx) {
-            //System.out.printf("handlerAdded ctx name:%s", ctx.name());
-            _buffer = ctx.alloc().buffer(_server._config.recvBufferSize);
-        }
+        public void channelRead0(ChannelHandlerContext ctx, DatagramPacket msg) {
+            ByteBuf buffer = msg.content();
 
-        @Override
-        public void handlerRemoved(ChannelHandlerContext ctx) {
-            _buffer.release();
-            _buffer = null;
-        }
-
-        @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) {
-            ByteBuf tmpBuf = (ByteBuf) msg;
-            _buffer.writeBytes(tmpBuf);
-            tmpBuf.release();
-
+            int startIndex = 0;
             boolean againCheck = false;
-
             do {
                 againCheck = false;
-                int byteSize = _buffer.readableBytes();
+                int byteSize = buffer.readableBytes();
 
                 //先判断是否能获取到消息头部的包整体信息
                 if (byteSize >= _server._config.handler.getMsgSizeFieldByteCount()) {
 
                     //再判断获取到的数据否到达消息包体总大小
-                    int msgSize = _server._config.handler.getMsgSize(_buffer);
+                    int msgSize = _server._config.handler.getMsgSize(buffer);
 
                     if (byteSize >= msgSize) {
 
-                        ByteBuf msgBuf = _buffer.slice(0, msgSize);
+                        ByteBuf msgBuf = buffer.slice(startIndex, msgSize);
 
                         //处理消息包
-                        _server._config.handler.handleMsg(ctx, msgBuf, _config.refObj);
+                        _server._config.handler.handleMsg(ctx, msgBuf, msg.sender(), _config.refObj);
+                        buffer.readerIndex(startIndex + msgSize);
+                        startIndex += msgSize;
 
                         //移动未完整的消息数据到包头
                         int tmpSize = byteSize - msgSize;
-                        if (tmpSize > 0) {
-                            ByteBuf buf = _buffer.slice(msgSize, tmpSize);
-                            _buffer.readerIndex(0).writerIndex(0).writeBytes(buf);
+                        if (tmpSize >= msgSize) {
                             againCheck = true;
-                        } else {
-                            _buffer.clear();
                         }
                     } else if (msgSize > _server._config.recvBufferSize) {
                         ctx.close();
