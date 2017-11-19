@@ -1,6 +1,6 @@
 package easy.net;
 
-public class NetServerConfig {
+public class TcpServerConfig {
     //端口号（0 - 65535）
     public int port = 0;
     //I/O 核心 (nio epoll)
@@ -22,7 +22,7 @@ public class NetServerConfig {
     //TCP socket accept 接收队列中能保存多少未来得及处理的连接
     public int backLog = 128;
     //处理步骤的回调
-    public NetServerHandler handler = null;
+    public TcpServerHandler handler = null;
     //传递对象（在回调的时候可以引用）
     public Object refObj = null;
 }

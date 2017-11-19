@@ -9,20 +9,20 @@ import io.netty.channel.socket.SocketChannel;
 
 import java.security.InvalidParameterException;
 
-public class NetServer {
+public class TcpServer {
 
-    private NetServerConfig _config;
+    private TcpServerConfig _config;
     private ServerBootstrap _server;
     private ChannelFuture _channelFuture;
     private EventLoopGroup _acceptGroup;
     private EventLoopGroup _workerGroup;
 
-    public NetServer() {
+    public TcpServer() {
 
     }
 
     //启动
-    public void run(NetServerConfig config) throws Exception {
+    public void run(TcpServerConfig config) throws Exception {
         this.checkConfig(config);
         _config = config;
 
@@ -49,6 +49,10 @@ public class NetServer {
                 _server.childOption(ChannelOption.SO_KEEPALIVE, true);
             }
 
+            if (_config.keepAliveSecond > 0) {
+                _server.childOption(ChannelOption.SO_TIMEOUT, _config.keepAliveSecond);
+            }
+
             // 绑定端口并启动接收
             _channelFuture = _server.bind(_config.port).sync(); // (7)
         } catch (Exception ex){
@@ -58,10 +62,6 @@ public class NetServer {
     }
 
     public void close() throws Exception {
-        // Wait until the server socket is closed.
-        // In this example, this does not happen, but you can do that to gracefully
-        // shut down your server.
-
         if (_channelFuture != null) {
             _channelFuture.channel().closeFuture().sync();
         }
@@ -76,7 +76,7 @@ public class NetServer {
         }
     }
 
-    private void checkConfig(NetServerConfig config) throws Exception {
+    private void checkConfig(TcpServerConfig config) throws Exception {
 
     }
 
@@ -93,9 +93,9 @@ public class NetServer {
     //SOCKET相关对象初始化
     private class ServerChannel extends ChannelInitializer<SocketChannel> {
 
-        private NetServer _server;
+        private TcpServer _server;
 
-        ServerChannel(NetServer server) {
+        ServerChannel(TcpServer server) {
             _server = server;
         }
 
@@ -108,10 +108,10 @@ public class NetServer {
     //数据收发处理回调
     private class ChannelHandler extends ChannelInboundHandlerAdapter {
 
-        private NetServer _server;
+        private TcpServer _server;
         private ByteBuf _buffer;
 
-        ChannelHandler(NetServer server) {
+        ChannelHandler(TcpServer server) {
             _server = server;
         }
 

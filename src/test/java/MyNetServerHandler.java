@@ -1,9 +1,9 @@
-import easy.net.NetServerHandler;
+import easy.net.TcpServerHandler;
 import easy.thread.WorkerGroup;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
-public class MyNetServerHandler implements NetServerHandler {
+public class MyNetServerHandler implements TcpServerHandler {
     public int getMsgSizeFieldByteCount() {
         return Integer.BYTES;
     }

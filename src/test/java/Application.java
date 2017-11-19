@@ -1,5 +1,5 @@
-import easy.net.NetServer;
-import easy.net.NetServerConfig;
+import easy.net.TcpServer;
+import easy.net.TcpServerConfig;
 import easy.thread.WorkerGroup;
 import easy.thread.WorkerGroupConfig;
 public class Application {
@@ -15,11 +15,11 @@ public class Application {
         workerGroup.run(workerConfig);
 
         //Net 服务
-        NetServerConfig serverConfig = new NetServerConfig();
+        TcpServerConfig serverConfig = new TcpServerConfig();
         serverConfig.port = 65002;
         serverConfig.refObj = workerGroup;
         serverConfig.handler = new MyNetServerHandler();
-        NetServer netServer = new NetServer();
+        TcpServer netServer = new TcpServer();
         netServer.run(serverConfig);
 
         System.out.printf("tcp server run");
