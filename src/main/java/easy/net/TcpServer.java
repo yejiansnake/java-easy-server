@@ -1,6 +1,5 @@
 package easy.net;
 
-import com.sun.javaws.exceptions.InvalidArgumentException;
 import easy.net.factory.ChannelFactory;
 import easy.net.factory.FactoryCreator;
 import io.netty.bootstrap.ServerBootstrap;
@@ -9,6 +8,8 @@ import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 
 import java.security.InvalidParameterException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TcpServer {
 
@@ -18,6 +19,8 @@ public class TcpServer {
     private EventLoopGroup _workerGroup;
     private EventLoopGroup _acceptGroup;
     private int _clientCount = 0;
+    private long _channelIndex = 1;
+    private Map<Long, Channel> _channelMap = new HashMap<>();
 
     public TcpServer() {
 
@@ -41,7 +44,7 @@ public class TcpServer {
 
             _server.channel(factory.getServerSocketChannelClass());
 
-            _server.childHandler(new ServerChannel(this))
+            _server.childHandler(new ServerChannelHandler(this))
                 .option(ChannelOption.SO_BACKLOG, _config.backLog)
                 .childOption(ChannelOption.SO_SNDBUF, 8 * 1024)     //发送和接收缓冲区默认8K
                 .childOption(ChannelOption.SO_RCVBUF, 8 * 1024);
@@ -77,6 +80,8 @@ public class TcpServer {
         if (_acceptGroup != null) {
             _acceptGroup.shutdownGracefully();
         }
+
+        _channelIndex = 1;
     }
 
     public int clientCount() {
@@ -126,11 +131,11 @@ public class TcpServer {
     }
 
     //SOCKET相关对象初始化
-    private class ServerChannel extends ChannelInitializer<SocketChannel> {
+    private class ServerChannelHandler extends ChannelInitializer<SocketChannel> {
 
         private TcpServer _server;
 
-        ServerChannel(TcpServer server) {
+        ServerChannelHandler(TcpServer server) {
             _server = server;
         }
 
@@ -145,6 +150,7 @@ public class TcpServer {
 
         private TcpServer _server;
         private ByteBuf _buffer;
+        private long _channelIndex;
 
         ChannelHandler(TcpServer server) {
             _server = server;
@@ -153,29 +159,36 @@ public class TcpServer {
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
             synchronized (_server) {
-                _clientCount++;
+                _server._clientCount++;
 
-                if (_clientCount > _server._config.clientLimit) {
+                if (_server._clientCount > _server._config.clientLimit) {
                     ctx.close();
                     return;
                 }
+
+                if (_server._channelIndex == Long.MAX_VALUE) {
+                    _server._channelIndex = 1;
+                }
+
+                _channelIndex = _server._channelIndex++;
+                _server._channelMap.put(_channelIndex, ctx.channel());
             }
 
-            //System.out.printf("handlerAdded ctx name:%s", ctx.name());
+            //System.out.printf("handlerAdded channel name:%s", channel.name());
             _buffer = ctx.alloc().buffer(_server._config.recvBufferSize);
         }
 
         @Override
         public void handlerRemoved(ChannelHandlerContext ctx) {
             synchronized (_server) {
-                _clientCount--;
+                _server._clientCount--;
+                _server._channelMap.remove(_channelIndex);
             }
 
             if (_buffer != null) {
                 _buffer.release();
                 _buffer = null;
             }
-
         }
 
         @Override
@@ -197,11 +210,14 @@ public class TcpServer {
                     int msgSize = _server._config.handler.getMsgSize(_buffer);
 
                     if (byteSize >= msgSize) {
-
-                        ByteBuf msgBuf = _buffer.slice(0, msgSize);
+                        TcpServerMsgParam msgParam = new TcpServerMsgParam();
+                        msgParam.id = _channelIndex;
+                        msgParam.channel = ctx.channel();
+                        msgParam.buffer = _buffer.slice(0, msgSize);
+                        msgParam.refObj = _config.refObj;
 
                         //处理消息包
-                        _server._config.handler.handleMsg(ctx, msgBuf, _config.refObj);
+                        _server._config.handler.handleMsg(msgParam);
 
                         //移动未完整的消息数据到包头
                         int tmpSize = byteSize - msgSize;

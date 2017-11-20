@@ -1,7 +1,7 @@
 import easy.net.TcpServerHandler;
+import easy.net.TcpServerMsgParam;
 import easy.thread.WorkerGroup;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
 
 public class MyNetServerHandler implements TcpServerHandler {
     public int getMsgSizeFieldByteCount() {
@@ -14,14 +14,14 @@ public class MyNetServerHandler implements TcpServerHandler {
         return tmp;
     }
 
-    public void handleMsg(ChannelHandlerContext ctx, ByteBuf buffer, Object refObj) {
-        //System.out.printf("MyNetServerHandler ctx name:%s, buffer size: %d \n", ctx.name(), buffer.readableBytes());
-        WorkerGroup workerGroup = (WorkerGroup)refObj;
+    public void handleMsg(TcpServerMsgParam param) {
+        //System.out.printf("MyNetServerHandler channel name:%s, buffer size: %d \n", channel.name(), buffer.readableBytes());
+        WorkerGroup workerGroup = (WorkerGroup)param.refObj;
 
         try {
             MyWorkerGroupTask task = new MyWorkerGroupTask();
-            task.ctx = ctx;
-            task.buffer = buffer.copy();
+            task.channel = param.channel;
+            task.buffer = param.buffer.copy();
             workerGroup.addTask(task);
         } catch (Exception ex){
 

@@ -117,11 +117,14 @@ public class UdpServer {
                     int msgSize = _server._config.handler.getMsgSize(buffer);
 
                     if (byteSize >= msgSize) {
-
-                        ByteBuf msgBuf = buffer.slice(startIndex, msgSize);
+                        UdpServerMsgParam msgParam = new UdpServerMsgParam();
+                        msgParam.channel = ctx.channel();
+                        msgParam.buffer = buffer.slice(startIndex, msgSize);
+                        msgParam.address = msg.sender();
+                        msgParam.refObj = _config.refObj;
 
                         //处理消息包
-                        _server._config.handler.handleMsg(ctx, msgBuf, msg.sender(), _config.refObj);
+                        _server._config.handler.handleMsg(msgParam);
                         buffer.readerIndex(startIndex + msgSize);
                         startIndex += msgSize;
 
