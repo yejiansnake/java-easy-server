@@ -19,7 +19,8 @@ public class TcpServer {
     private EventLoopGroup _workerGroup;
     private EventLoopGroup _acceptGroup;
     private int _clientCount = 0;
-    private long _channelIndex = 1;
+    private static final long MAX_CHANNEL_INDEX = 1;
+    private long _channelIndex = MAX_CHANNEL_INDEX;
     private Map<Long, Channel> _channelMap = new HashMap<>();
 
     public TcpServer() {
@@ -81,7 +82,7 @@ public class TcpServer {
             _acceptGroup.shutdownGracefully();
         }
 
-        _channelIndex = 1;
+        _channelIndex = MAX_CHANNEL_INDEX;
     }
 
     public int clientCount() {
@@ -90,9 +91,42 @@ public class TcpServer {
         }
     }
 
+    public void sendChannel(long channelID, Object msg) {
+        Channel channel = this.getSocketChannel(channelID);
+        if (channel != null) {
+            channel.writeAndFlush(msg);
+        }
+    }
+
+    public void closeChannel(long channelID) {
+        Channel channel = this.getSocketChannel(channelID);
+        if (channel != null) {
+            channel.close();
+        }
+    }
+
+    private Channel getSocketChannel(long channelID) {
+        Channel channel = null;
+        synchronized (this) {
+            if (_channelMap.containsKey(channelID)) {
+                channel = _channelMap.get(channelID);
+            }
+        }
+
+        return channel;
+    }
+
     private void checkConfig(TcpServerConfig config) throws Exception {
         if (config == null) {
             throw new InvalidParameterException("config invalid");
+        }
+
+        if (config.port < 0 || config.port > 65535) {
+            throw new InvalidParameterException("config.port invalid");
+        }
+
+        if (!config.core.equals("nio") && !config.core.equals("epoll")) {
+            throw new InvalidParameterException("config.core invalid");
         }
 
         if (config.recvBufferSize <= 0) {
@@ -150,7 +184,7 @@ public class TcpServer {
 
         private TcpServer _server;
         private ByteBuf _buffer;
-        private long _channelIndex;
+        private long _channelID;
 
         ChannelHandler(TcpServer server) {
             _server = server;
@@ -167,11 +201,11 @@ public class TcpServer {
                 }
 
                 if (_server._channelIndex == Long.MAX_VALUE) {
-                    _server._channelIndex = 1;
+                    _server._channelIndex = TcpServer.MAX_CHANNEL_INDEX;
                 }
 
-                _channelIndex = _server._channelIndex++;
-                _server._channelMap.put(_channelIndex, ctx.channel());
+                _channelID = _server._channelIndex++;
+                _server._channelMap.put(_channelID, ctx.channel());
             }
 
             //System.out.printf("handlerAdded channel name:%s", channel.name());
@@ -182,7 +216,7 @@ public class TcpServer {
         public void handlerRemoved(ChannelHandlerContext ctx) {
             synchronized (_server) {
                 _server._clientCount--;
-                _server._channelMap.remove(_channelIndex);
+                _server._channelMap.remove(_channelID);
             }
 
             if (_buffer != null) {
@@ -211,7 +245,7 @@ public class TcpServer {
 
                     if (byteSize >= msgSize) {
                         TcpServerMsgParam msgParam = new TcpServerMsgParam();
-                        msgParam.id = _channelIndex;
+                        msgParam.id = _channelID;
                         msgParam.channel = ctx.channel();
                         msgParam.buffer = _buffer.slice(0, msgSize);
                         msgParam.refObj = _config.refObj;
