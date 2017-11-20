@@ -6,7 +6,7 @@ public class TcpServerConfig {
     //I/O 核心 (nio epoll)
     public String core = "nio";
     //I/O 核心模型(epoll 有 EPOLLET 与 EPOLLET 两种模型)
-    public String mode = "";
+    //public String mode = "";
     //消息体限制（默认20KB）
     public int recvBufferSize = 20 * 1024;
     //TCP accept 线程数
