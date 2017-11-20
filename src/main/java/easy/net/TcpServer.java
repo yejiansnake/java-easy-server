@@ -1,5 +1,6 @@
 package easy.net;
 
+import com.sun.javaws.exceptions.InvalidArgumentException;
 import easy.net.factory.ChannelFactory;
 import easy.net.factory.FactoryCreator;
 import io.netty.bootstrap.ServerBootstrap;
@@ -14,8 +15,9 @@ public class TcpServer {
     private TcpServerConfig _config;
     private ServerBootstrap _server;
     private ChannelFuture _channelFuture;
-    private EventLoopGroup _acceptGroup;
     private EventLoopGroup _workerGroup;
+    private EventLoopGroup _acceptGroup;
+    private int _clientCount = 0;
 
     public TcpServer() {
 
@@ -77,8 +79,40 @@ public class TcpServer {
         }
     }
 
-    private void checkConfig(TcpServerConfig config) throws Exception {
+    public int clientCount() {
+        synchronized (this) {
+            return _clientCount;
+        }
+    }
 
+    private void checkConfig(TcpServerConfig config) throws Exception {
+        if (config == null) {
+            throw new InvalidParameterException("config invalid");
+        }
+
+        if (config.recvBufferSize <= 0) {
+            throw new InvalidParameterException("config.recvBufferSize invalid");
+        }
+
+        if (config.acceptThreadCount <= 0) {
+            throw new InvalidParameterException("config.acceptThreadCount invalid");
+        }
+
+        if (config.recvThreadCount <= 0) {
+            throw new InvalidParameterException("config.recvThreadCount invalid");
+        }
+
+        if (config.clientLimit <= 0) {
+            throw new InvalidParameterException("config.clientLimit invalid");
+        }
+
+        if (config.backLog <= 0) {
+            throw new InvalidParameterException("config.backLog invalid");
+        }
+
+        if (config.handler == null) {
+            throw new InvalidParameterException("config.handler invalid");
+        }
     }
 
     public ChannelFactory getChannelFactory() throws Exception {
@@ -118,14 +152,30 @@ public class TcpServer {
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
+            synchronized (_server) {
+                _clientCount++;
+
+                if (_clientCount > _server._config.clientLimit) {
+                    ctx.close();
+                    return;
+                }
+            }
+
             //System.out.printf("handlerAdded ctx name:%s", ctx.name());
             _buffer = ctx.alloc().buffer(_server._config.recvBufferSize);
         }
 
         @Override
         public void handlerRemoved(ChannelHandlerContext ctx) {
-            _buffer.release();
-            _buffer = null;
+            synchronized (_server) {
+                _clientCount--;
+            }
+
+            if (_buffer != null) {
+                _buffer.release();
+                _buffer = null;
+            }
+
         }
 
         @Override
