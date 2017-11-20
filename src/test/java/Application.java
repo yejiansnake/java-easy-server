@@ -12,7 +12,7 @@ public class Application {
         workerConfig.queueCapacity = 1000;
         workerConfig.workerCount = 5;
         WorkerGroup workerGroup = new WorkerGroup();
-        workerGroup.run(workerConfig);
+        workerGroup.start(workerConfig);
 
         //Net 服务
         TcpServerConfig serverConfig = new TcpServerConfig();
@@ -20,9 +20,9 @@ public class Application {
         serverConfig.refObj = workerGroup;
         serverConfig.handler = new MyNetServerHandler();
         TcpServer netServer = new TcpServer();
-        netServer.run(serverConfig);
+        netServer.start(serverConfig);
 
-        System.out.printf("tcp server run");
+        System.out.printf("tcp server start");
 
         while (true) {
             Thread.sleep(1);

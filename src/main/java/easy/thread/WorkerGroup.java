@@ -7,7 +7,7 @@ import java.util.concurrent.CountDownLatch;
 public class WorkerGroup {
     private final static int _stopWaitThreadSecond = 3;
     private WorkerGroupConfig _config;
-    private boolean _close = true;
+    private boolean _stop = true;
     private ChannelQueue<Object> _queue;
     private Thread[] _threads;
     private CountDownLatch _countDownLatch;
@@ -15,14 +15,14 @@ public class WorkerGroup {
     public WorkerGroup() {
     }
 
-    public final void run(WorkerGroupConfig config) throws Exception {
+    public final void start(WorkerGroupConfig config) throws Exception {
         this.checkConfig(config);
 
         synchronized (this) {
-            if (!_close) {
-                throw new Exception("instance has run");
+            if (!_stop) {
+                throw new Exception("instance has start");
             }
-            _close = false;
+            _stop = false;
         }
 
         _config = config;
@@ -30,12 +30,12 @@ public class WorkerGroup {
         this.initWorkerThreads();
     }
 
-    public final void close() {
+    public final void stop() {
         synchronized (this) {
-            if (_close) {
+            if (_stop) {
                 return;
             }
-            _close = true;
+            _stop = true;
         }
 
         this.stopWorkerThreads();
@@ -95,7 +95,7 @@ public class WorkerGroup {
                 }
             }
         } catch (Exception ex) {
-            System.out.printf("work group close exception, info:%s \n", ex.getMessage());
+            System.out.printf("work group stop exception, info:%s \n", ex.getMessage());
         }
         finally {
             _countDownLatch = null;
@@ -123,13 +123,13 @@ public class WorkerGroup {
                 WorkerGroupHandler handler = _workerGroup._config.handlerClass.getDeclaredConstructor().newInstance();
                 this.run(handler);
             } catch (Exception ex) {
-                System.out.printf("work group runnable run failed, info:%s \n", ex.getMessage());
+                System.out.printf("work group runnable start failed, info:%s \n", ex.getMessage());
             }
         }
 
         public void run(WorkerGroupHandler handler) {
             Object taskObj = null;
-            while (!_workerGroup._close) {
+            while (!_workerGroup._stop) {
                 try {
                     taskObj = _workerGroup.getTask(1);
 

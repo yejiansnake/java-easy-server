@@ -22,7 +22,7 @@ public class TcpServer {
     }
 
     //启动
-    public void run(TcpServerConfig config) throws Exception {
+    public void start(TcpServerConfig config) throws Exception {
         this.checkConfig(config);
         _config = config;
 
@@ -57,12 +57,12 @@ public class TcpServer {
             _channelFuture = _server.bind(_config.port).sync();
 
         } catch (Exception ex){
-            this.close();
+            this.stop();
             throw ex;
         }
     }
 
-    public void close() throws Exception {
+    public void stop() throws Exception {
         if (_channelFuture != null) {
             _channelFuture.channel().closeFuture().sync();
         }
