@@ -15,7 +15,7 @@ import java.security.InvalidParameterException;
 public class UdpReactor {
 
     private UdpReactorConfig _config;
-    private Bootstrap _server;
+    private Bootstrap _reactor;
     private Channel _channel;
     private ChannelFuture _channelFuture;
     private EventLoopGroup _workerGroup;
@@ -36,25 +36,25 @@ public class UdpReactor {
 
         //配置server 并启动
         try {
-            _server = new Bootstrap();
-            _server.group(_workerGroup);
+            _reactor = new Bootstrap();
+            _reactor.group(_workerGroup);
 
-            _server.channel(factory.getDatagramChannelClass());
+            _reactor.channel(factory.getDatagramChannelClass());
 
-            _server.handler(new ServerChannel(this))
+            _reactor.handler(new ServerChannel(this))
                 .option(ChannelOption.SO_SNDBUF, 8 * 1024)
                 .option(ChannelOption.SO_RCVBUF, 8 * 1024);
 
             if (_config.broadcast) {
-                _server.option(ChannelOption.SO_BROADCAST,true);
+                _reactor.option(ChannelOption.SO_BROADCAST,true);
             }
 
             // 绑定端口并启动接收
 
             if (_config.port > 0) {
-                _channelFuture = _server.bind(_config.port);
+                _channelFuture = _reactor.bind(_config.port);
             } else {
-                _channelFuture = _server.bind();
+                _channelFuture = _reactor.bind();
             }
 
             _channelFuture.sync();
@@ -78,7 +78,7 @@ public class UdpReactor {
 
         _channel = null;
         _channelFuture = null;
-        _server = null;
+        _reactor = null;
         _workerGroup = null;
         _config = null;
     }
