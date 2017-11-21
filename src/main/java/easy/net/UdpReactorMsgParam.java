@@ -5,7 +5,7 @@ import io.netty.channel.Channel;
 
 import java.net.InetSocketAddress;
 
-public class UdpServerMsgParam {
+public class UdpReactorMsgParam {
     Channel channel;
     ByteBuf buffer;
     InetSocketAddress address;

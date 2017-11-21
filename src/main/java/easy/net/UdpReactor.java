@@ -4,25 +4,28 @@ import easy.net.factory.ChannelFactory;
 import easy.net.factory.FactoryCreator;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.channel.socket.SocketChannel;
 
+import java.net.InetSocketAddress;
 import java.security.InvalidParameterException;
 
-public class UdpServer {
+public class UdpReactor {
 
-    private UdpServerConfig _config;
+    private UdpReactorConfig _config;
     private Bootstrap _server;
+    private Channel _channel;
     private ChannelFuture _channelFuture;
     private EventLoopGroup _workerGroup;
 
-    public UdpServer() {
+    public UdpReactor() {
 
     }
 
     //启动
-    public void start(UdpServerConfig config) throws Exception {
+    public void start(UdpReactorConfig config) throws Exception {
         this.checkConfig(config);
         _config = config;
 
@@ -42,28 +45,82 @@ public class UdpServer {
                 .option(ChannelOption.SO_SNDBUF, 8 * 1024)
                 .option(ChannelOption.SO_RCVBUF, 8 * 1024);
 
-            // 绑定端口并启动接收
-            _channelFuture = _server.bind(_config.port).sync();
+            if (_config.broadcast) {
+                _server.option(ChannelOption.SO_BROADCAST,true);
+            }
 
-        } catch (Exception ex){
+            // 绑定端口并启动接收
+
+            if (_config.port > 0) {
+                _channelFuture = _server.bind(_config.port);
+            } else {
+                _channelFuture = _server.bind();
+            }
+
+            _channelFuture.sync();
+            _channel = _channelFuture.channel();
+
+        } catch (Exception ex) {
             this.stop();
             throw ex;
         }
     }
 
     public void stop() throws Exception {
-        if (_channelFuture != null) {
-            _channelFuture.channel().closeFuture().sync();
+        if (_channel != null) {
+            _channel.closeFuture().sync();
         }
 
         //释放线程
         if (_workerGroup != null) {
             _workerGroup.shutdownGracefully();
         }
+
+        _channel = null;
+        _channelFuture = null;
+        _server = null;
+        _workerGroup = null;
+        _config = null;
     }
 
-    private void checkConfig(UdpServerConfig config) throws Exception {
+    public void send(byte[] buffer, InetSocketAddress address) {
+        this.send(Unpooled.copiedBuffer(buffer), address);
+    }
 
+    public void send(ByteBuf buffer, InetSocketAddress address) {
+        this.send(new DatagramPacket(buffer, address));
+    }
+
+    public void send(DatagramPacket udpPacket) {
+        if (_channel != null) {
+            _channel.writeAndFlush(udpPacket);
+        }
+    }
+
+    private void checkConfig(UdpReactorConfig config) throws Exception {
+        if (config == null) {
+            throw new InvalidParameterException("config invalid");
+        }
+
+        if (config.port < 0 || config.port > 65535) {
+            throw new InvalidParameterException("config.port invalid");
+        }
+
+        if (!config.core.equals("nio") && !config.core.equals("epoll")) {
+            throw new InvalidParameterException("config.core invalid");
+        }
+
+        if (config.recvBufferSize <= 0) {
+            throw new InvalidParameterException("config.recvBufferSize invalid");
+        }
+
+        if (config.recvThreadCount <= 0) {
+            throw new InvalidParameterException("config.recvThreadCount invalid");
+        }
+
+        if (config.handler == null) {
+            throw new InvalidParameterException("config.handler invalid");
+        }
     }
 
     public ChannelFactory getChannelFactory() throws Exception {
@@ -79,9 +136,9 @@ public class UdpServer {
     //SOCKET相关对象初始化
     private class ServerChannel extends ChannelInitializer<SocketChannel> {
 
-        private UdpServer _server;
+        private UdpReactor _server;
 
-        ServerChannel(UdpServer server) {
+        ServerChannel(UdpReactor server) {
             _server = server;
         }
 
@@ -94,9 +151,9 @@ public class UdpServer {
     //数据收发处理回调
     private class ChannelHandler extends SimpleChannelInboundHandler<DatagramPacket> {
 
-        private UdpServer _server;
+        private UdpReactor _server;
 
-        ChannelHandler(UdpServer server) {
+        ChannelHandler(UdpReactor server) {
             _server = server;
         }
 
@@ -117,7 +174,7 @@ public class UdpServer {
                     int msgSize = _server._config.handler.getMsgSize(buffer);
 
                     if (byteSize >= msgSize) {
-                        UdpServerMsgParam msgParam = new UdpServerMsgParam();
+                        UdpReactorMsgParam msgParam = new UdpReactorMsgParam();
                         msgParam.channel = ctx.channel();
                         msgParam.buffer = buffer.slice(startIndex, msgSize);
                         msgParam.address = msg.sender();

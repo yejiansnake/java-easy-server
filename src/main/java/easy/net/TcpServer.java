@@ -82,7 +82,15 @@ public class TcpServer {
             _acceptGroup.shutdownGracefully();
         }
 
+        _channelFuture = null;
+        _server = null;
+        _workerGroup = null;
+        _acceptGroup = null;
+        _config = null;
+
+        _channelMap.clear();
         _channelIndex = MAX_CHANNEL_INDEX;
+        _clientCount = 0;
     }
 
     public int clientCount() {
@@ -216,7 +224,9 @@ public class TcpServer {
         public void handlerRemoved(ChannelHandlerContext ctx) {
             synchronized (_server) {
                 _server._clientCount--;
-                _server._channelMap.remove(_channelID);
+                if (_channelID > 0) {
+                    _server._channelMap.remove(_channelID);
+                }
             }
 
             if (_buffer != null) {
