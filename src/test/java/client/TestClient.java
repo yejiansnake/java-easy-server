@@ -9,7 +9,7 @@ public class TestClient {
 
     public static void main(String args[]) throws Exception {
 
-        final int clientCount = 500;
+        final int clientCount = 100;
 
         TcpClient[] clients = new TcpClient[clientCount];
 
@@ -19,15 +19,16 @@ public class TestClient {
 
         int count = 1;
         while (true) {
-            ByteBuf buffer = Unpooled.buffer();
-            buffer.writeInt(12);
-            buffer.writeInt(0);
-            buffer.writeInt(count);
-            count++;
-
             for (int index = 0; index < clientCount; index++) {
+                ByteBuf buffer = Unpooled.buffer();
+                buffer.writeInt(12);
+                buffer.writeInt(0);
+                buffer.writeInt(count);
                 clients[index].send(buffer);
+                Thread.sleep(1);
             }
+
+            count++;
 
 //            if (count == 1000) {
 //                for (int index = 0; index < clientCount; index++) {
@@ -35,8 +36,6 @@ public class TestClient {
 //                }
 //                count = 1;
 //            }
-
-            Thread.sleep(100);
         }
     }
 
