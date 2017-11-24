@@ -1,3 +1,5 @@
+package server;
+
 import easy.net.TcpServerHandler;
 import easy.net.TcpServerMsgParam;
 import easy.thread.WorkerGroup;
@@ -9,13 +11,13 @@ public class MyNetServerHandler implements TcpServerHandler {
     }
 
     public int getMsgSize(ByteBuf buffer) {
-        int tmp = buffer.getIntLE(0);
-        //System.out.printf("MyNetServerHandler getMsgSize buffer size: %d \n", tmp);
+        int tmp = buffer.getInt(0);
+        //System.out.printf("server.MyNetServerHandler getMsgSize buffer size: %d \n", tmp);
         return tmp;
     }
 
     public void handleMsg(TcpServerMsgParam param) {
-        //System.out.printf("MyNetServerHandler channel name:%s, buffer size: %d \n", channel.name(), buffer.readableBytes());
+        //System.out.printf("server.MyNetServerHandler channel name:%s, buffer size: %d \n", channel.name(), buffer.readableBytes());
         WorkerGroup workerGroup = (WorkerGroup)param.refObj;
 
         try {

@@ -1,8 +1,10 @@
+package server;
+
 import easy.net.TcpServer;
 import easy.net.TcpServerConfig;
 import easy.thread.WorkerGroup;
 import easy.thread.WorkerGroupConfig;
-public class Application {
+public class TestServer {
 
     public static void main(String args[]) throws Exception {
 

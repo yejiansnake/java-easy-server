@@ -27,7 +27,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>Application</mainClass>
+                            <mainClass>server.TestServer</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

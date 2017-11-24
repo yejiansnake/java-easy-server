@@ -22,6 +22,7 @@ public class TcpServer {
     private static final long MAX_CHANNEL_INDEX = 1;
     private long _channelIndex = MAX_CHANNEL_INDEX;
     private Map<Long, Channel> _channelMap = new HashMap<>();
+    private boolean _stop = true;
 
     public TcpServer() {
 
@@ -37,6 +38,8 @@ public class TcpServer {
         //工作线程
         _acceptGroup = factory.createEventLoopGroup(_config.acceptThreadCount);
         _workerGroup = factory.createEventLoopGroup(_config.recvThreadCount);
+
+        _stop = false;
 
         //配置server 并启动
         try {
@@ -56,7 +59,7 @@ public class TcpServer {
             }
 
             if (_config.keepAliveSecond > 0) {
-                _server.childOption(ChannelOption.SO_TIMEOUT, _config.keepAliveSecond);
+                //_server.childOption(ChannelOption.SO_TIMEOUT, _config.keepAliveSecond);
             }
 
             // 绑定端口并启动接收
@@ -69,17 +72,24 @@ public class TcpServer {
     }
 
     public void stop() throws Exception {
+        synchronized (this) {
+            if (_stop) {
+                return;
+            }
+            _stop = true;
+        }
+
         if (_channelFuture != null) {
             _channelFuture.channel().closeFuture().sync();
         }
 
         //释放线程
         if (_workerGroup != null) {
-            _workerGroup.shutdownGracefully();
+            _workerGroup.shutdownGracefully().sync();
         }
 
         if (_acceptGroup != null) {
-            _acceptGroup.shutdownGracefully();
+            _acceptGroup.shutdownGracefully().sync();
         }
 
         _channelFuture = null;

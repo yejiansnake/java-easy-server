@@ -36,4 +36,8 @@ public class ChannelQueue<E> {
     public int count() {
         return _queue.size();
     }
+
+    public void clear() {
+        _queue.clear();
+    }
 }

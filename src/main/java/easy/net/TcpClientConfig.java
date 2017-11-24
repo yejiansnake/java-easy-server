@@ -5,7 +5,9 @@ public class TcpClientConfig {
     public String host = "";
     //端口号（0 - 65535）
     public int port = 0;
-    //I/O 核心 (nio epoll)
+    //发送队列消息最大个数
+    public int sendMsgCount = 1000;
+    //接收缓冲区大小
     public int recvBufferSize = 20 * 1024;
     //是否启用核心上的心跳机制（client也需要打开，否则强制 client 断开）
     public boolean enabledSysKeepAlive = false;

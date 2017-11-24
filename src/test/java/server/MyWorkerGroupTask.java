@@ -1,3 +1,5 @@
+package server;
+
 import easy.thread.WorkerGroupHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledHeapByteBuf;
