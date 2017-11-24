@@ -164,7 +164,7 @@ public class TcpClient {
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
             _buffer = ctx.alloc().buffer(_client._config.recvBufferSize);
-            System.out.printf("client handlerAdded");
+            //System.out.printf("client handlerAdded");
         }
 
         @Override
@@ -173,13 +173,13 @@ public class TcpClient {
                 _buffer.release();
                 _buffer = null;
             }
-            System.out.printf("client handlerRemoved");
+            //System.out.printf("client handlerRemoved");
         }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) {
             //连接成功
-            System.out.printf("client channelActive");
+            //System.out.printf("client channelActive");
         }
 
         @Override

@@ -15,6 +15,6 @@ public class MyTcpClientHandler implements TcpClientHandler {
 
     public void handleMsg(TcpClientMsgParam param) {
         int value = param.buffer.getInt(8);
-        System.out.printf("handle msg value:%d \n", value);
+        //System.out.printf("handle msg value:%d \n", value);
     }
 }

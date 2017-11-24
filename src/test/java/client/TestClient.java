@@ -9,14 +9,13 @@ public class TestClient {
 
     public static void main(String args[]) throws Exception {
 
-        TcpClientConfig config = new TcpClientConfig();
-        config.host = "127.0.0.1";
-        config.port = 65002;
-        config.handler = new MyTcpClientHandler();
-        TcpClient netInstance = new TcpClient();
-        netInstance.start(config);
+        final int clientCount = 500;
 
-        System.out.printf("tcp client start");
+        TcpClient[] clients = new TcpClient[clientCount];
+
+        for (int index = 0; index < clientCount; index++) {
+            clients[index] = TestClient.runTest();
+        }
 
         int count = 1;
         while (true) {
@@ -25,14 +24,29 @@ public class TestClient {
             buffer.writeInt(0);
             buffer.writeInt(count);
             count++;
-            netInstance.send(buffer);
 
-            if (count == 1000) {
-                netInstance.close();
-                count = 1;
+            for (int index = 0; index < clientCount; index++) {
+                clients[index].send(buffer);
             }
 
-            Thread.sleep(1);
+//            if (count == 1000) {
+//                for (int index = 0; index < clientCount; index++) {
+//                    clients[index].close();
+//                }
+//                count = 1;
+//            }
+
+            Thread.sleep(100);
         }
+    }
+
+    private static TcpClient runTest() throws Exception {
+        TcpClientConfig config = new TcpClientConfig();
+        config.host = "127.0.0.1";
+        config.port = 65002;
+        config.handler = new MyTcpClientHandler();
+        TcpClient netInstance = new TcpClient();
+        netInstance.start(config);
+        return netInstance;
     }
 }
